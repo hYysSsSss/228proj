@@ -1,0 +1,61 @@
+{
+  "config": {
+    "project": "real_xview2_damage_assessment",
+    "seed": 228,
+    "device": "auto",
+    "paths": {
+      "data_root": "data/xview2_real",
+      "processed_dir": "outputs/real_processed",
+      "run_dir": "outputs/real_runs"
+    },
+    "data": {
+      "image_size": 256,
+      "num_workers": 0,
+      "damage_classes": [
+        "background",
+        "no-damage",
+        "minor-damage",
+        "major-damage",
+        "destroyed"
+      ]
+    },
+    "training": {
+      "epochs": 5,
+      "batch_size": 8,
+      "lr": 0.0003,
+      "weight_decay": 0.0001,
+      "amp": true,
+      "save_every_epoch": false
+    },
+    "benchmarks": {
+      "segmentation": [
+        "unet",
+        "fcn_resnet50",
+        "deeplabv3_resnet50"
+      ],
+      "classification": [
+        "resnet18",
+        "mobilenet_v3_small",
+        "efficientnet_b0"
+      ],
+      "change_segmentation": [
+        "change_unet"
+      ]
+    }
+  },
+  "args": {
+    "config": "configs/real_xview2_benchmark.yaml",
+    "crops_csv": "outputs\\real_processed\\hf_xview2_damage_pair_crops.csv",
+    "model": "convnext_tiny",
+    "epochs": 12,
+    "batch_size": 24,
+    "eval_only": false,
+    "checkpoint": null,
+    "pretrained": true,
+    "balanced_sampler": false,
+    "class_weighted_loss": false,
+    "label_smoothing": 0.05,
+    "run_name": "cls_convnext_tiny_pair_aug12_ls005",
+    "augment": true
+  }
+}

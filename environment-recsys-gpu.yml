@@ -1,0 +1,23 @@
+name: recsys-gpu
+channels:
+  - pytorch
+  - nvidia
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10
+  - pytorch
+  - torchvision
+  - pytorch-cuda
+  - numpy
+  - pandas
+  - scikit-learn
+  - matplotlib
+  - pillow
+  - pyyaml
+  - tqdm
+  - scipy
+  - pip
+  - pip:
+      - huggingface_hub
+      - pypdf

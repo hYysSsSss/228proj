@@ -1,0 +1,22 @@
+{
+  "num_pairs": 1200,
+  "splits": {
+    "train": 800,
+    "val": 200,
+    "test": 200
+  },
+  "pairs_csv": "outputs\\real_processed\\hf_xview2_pairs.csv",
+  "num_paired_crops": 7987,
+  "paired_crop_splits": {
+    "train": 5208,
+    "test": 1391,
+    "val": 1388
+  },
+  "paired_crops_csv": "outputs\\real_processed\\hf_xview2_damage_pair_crops.csv",
+  "paired_crop_class_counts": {
+    "no-damage": 3720,
+    "destroyed": 1542,
+    "major-damage": 1402,
+    "minor-damage": 1323
+  }
+}

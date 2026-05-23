@@ -1,0 +1,57 @@
+{
+  "config": {
+    "project": "real_xview2_damage_assessment",
+    "seed": 228,
+    "device": "auto",
+    "paths": {
+      "data_root": "data/xview2_real",
+      "processed_dir": "outputs/real_processed",
+      "run_dir": "outputs/real_runs"
+    },
+    "data": {
+      "image_size": 256,
+      "num_workers": 0,
+      "damage_classes": [
+        "background",
+        "no-damage",
+        "minor-damage",
+        "major-damage",
+        "destroyed"
+      ]
+    },
+    "training": {
+      "epochs": 5,
+      "batch_size": 8,
+      "lr": 0.0003,
+      "weight_decay": 0.0001,
+      "amp": true,
+      "save_every_epoch": false
+    },
+    "benchmarks": {
+      "segmentation": [
+        "unet",
+        "fcn_resnet50",
+        "deeplabv3_resnet50"
+      ],
+      "classification": [
+        "resnet18",
+        "mobilenet_v3_small",
+        "efficientnet_b0"
+      ],
+      "change_segmentation": [
+        "change_unet"
+      ]
+    }
+  },
+  "args": {
+    "config": "configs/real_xview2_benchmark.yaml",
+    "pairs_csv": "outputs\\real_processed\\hf_xview2_pairs.csv",
+    "model": "change_unet",
+    "target": "damage",
+    "epochs": 5,
+    "batch_size": 8,
+    "eval_only": false,
+    "checkpoint": null,
+    "pretrained": false
+  }
+}

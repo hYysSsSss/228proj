@@ -1,0 +1,23 @@
+.idea/
+__pycache__/
+*.pyc
+
+# Raw datasets and heavy generated outputs are kept locally.
+data/
+outputs/
+
+# Model checkpoints can be very large and are reproducible from the scripts.
+*.pt
+*.pth
+
+# LaTeX build products.
+*.aux
+*.bbl
+*.blg
+*.log
+*.out
+*.toc
+*.synctex.gz
+
+# Local duplicate archives.
+*.7z
