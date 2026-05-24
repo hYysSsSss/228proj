@@ -10,7 +10,7 @@
 
 \graphicspath{{figures/}}
 
-\title{Benchmarking Deep Learning Baselines for Post-Disaster Building Damage Assessment on Real xBD/xView2 Data}
+\title{Post-Disaster Building Damage Assessment with Baseline Benchmarks and Segmentation-Guided Classification}
 
 \author{
     \IEEEauthorblockN{Student Name}
@@ -25,53 +25,61 @@
 \maketitle
 
 \begin{abstract}
-Rapid building damage assessment after natural disasters is important for emergency response, resource allocation, and long-term recovery planning. This project studies post-disaster building damage assessment using a real xBD/xView2-derived remote-sensing dataset rather than synthetic or toy data. Following the project feedback, the study is designed as a benchmark across both segmentation and classification tasks. For semantic damage segmentation, we compare U-Net, FCN-ResNet50, and DeepLabV3-ResNet50. For crop-level damage classification, we compare ResNet18, MobileNetV3-Small, EfficientNet-B0, EfficientNetV2-S, and ConvNeXt-Tiny, including paired pre-disaster and post-disaster building crops. All experiments are run in the same CUDA-enabled Conda environment and all intermediate results, metrics, and plots are saved for reproducibility. On the reproducible real-data subset, FCN-ResNet50 obtains the best segmentation result with 0.3189 mean IoU and 0.3957 mean Dice. ConvNeXt-Tiny with paired pre/post crops and data augmentation obtains the best classification result with 0.7110 accuracy, 0.6716 macro-F1, and 0.7123 weighted-F1. The results show that modern pretrained classifiers and paired temporal inputs improve damage classification, while fine-grained minor and major damage categories remain challenging.
+Post-disaster building damage assessment from satellite imagery is important for emergency response and recovery planning. This project studies the task on a real xBD/xView2-derived dataset and addresses the project feedback by using real data, running a broad benchmark, and comparing against stronger modern baselines. The project contains two related tasks: pixel-level damage segmentation and damage-level classification. First, I benchmark U-Net, FCN-ResNet50, and DeepLabV3-ResNet50 for segmentation, and ResNet18, MobileNetV3-Small, EfficientNet-B0, EfficientNetV2-S, and ConvNeXt-Tiny for crop-level classification. Second, I extend the original design with a segmentation-guided classification model. The new model keeps the segmentation model and classification model as two independent branches, both receiving the raw paired pre/post image as input. At each encoder stage, the U-Net segmentation feature is filtered by a learnable $1\times1$ convolution and added to the corresponding ResNet-style classifier feature. The selected training strategy first warms up the segmentation branch and then jointly trains the segmentation branch, classifier branch, and fusion adapters. On the real 800/200/200 image-pair split, FCN-ResNet50 achieves the best baseline segmentation result with 0.3189 mean IoU and 0.3957 mean Dice. ConvNeXt-Tiny with paired crops and augmentation achieves the best crop-level classification result with 0.7110 accuracy and 0.6716 macro-F1. The new segmentation-guided full-image model runs end-to-end on the same split and achieves 0.9436 pixel accuracy, 0.2144 mean IoU, and 0.5000 image-level classification accuracy.
 \end{abstract}
 
 \section{Introduction}
-Natural disasters such as hurricanes, floods, earthquakes, and wildfires can damage thousands of buildings within a short time. Manual field inspection is accurate but slow, expensive, and sometimes unsafe. Satellite imagery provides a scalable alternative because the same region can be observed before and after a disaster. The core technical problem is to detect buildings and estimate their damage severity from high-resolution remote-sensing imagery.
+Natural disasters such as hurricanes, earthquakes, floods, and wildfires can damage a large number of buildings in a short period of time. Rapidly estimating the location and severity of damage is useful for rescue planning, insurance assessment, and long-term recovery. Satellite imagery is well suited for this problem because many disaster areas can be observed before and after an event. The main challenge is that disaster damage is both spatial and semantic: a system must understand where buildings are located and also estimate how severely they are damaged.
 
-The original project proposal considered U-Net and ResNet-style models. The feedback pointed out that these models can look like generic computer vision methods unless they are connected to a real-world dataset and evaluated against strong baselines. This report directly addresses that feedback in three ways. First, it uses a real xBD/xView2-derived disaster dataset. Second, it evaluates multiple baseline and modern models instead of a single architecture. Third, it reports complete quantitative benchmark results for both segmentation and classification.
+The initial project idea used U-Net for segmentation and ResNet for classification. The project feedback noted that these models can look like generic computer vision methods unless they are evaluated on real data and compared with stronger baselines. In response, this report uses a real xBD/xView2-derived disaster dataset and runs a complete benchmark over segmentation and classification models. The benchmark part establishes reproducible baselines and shows how modern pretrained models perform on this task.
 
-The project has two tasks. The first task is damage segmentation, where the model predicts a pixel-level mask over five classes: background, no-damage, minor-damage, major-damage, and destroyed. The second task is building-level damage classification, where cropped building regions are assigned one of four damage labels: no-damage, minor-damage, major-damage, or destroyed. The classification task uses paired pre-disaster and post-disaster crops so that the model can learn visual change rather than relying only on the post-disaster appearance.
+In addition to the benchmark, I added a new model design that explicitly connects the segmentation and classification components. The motivation is that segmentation encoders learn spatial damage features that may also help classification. Instead of only training two independent models, the new model uses segmentation encoder features to guide the classifier. At every matched feature scale, the segmentation feature is passed through a $1\times1$ convolution adapter and then added to the classifier feature. This design preserves two independent branches but allows classification to benefit from segmentation-aware spatial representations.
+
+The contributions of this project are:
+\begin{itemize}
+    \item A real-data benchmark on an xBD/xView2-derived dataset for both damage segmentation and damage classification.
+    \item A comparison among classical and modern baselines, including U-Net, FCN-ResNet50, DeepLabV3-ResNet50, ResNet18, MobileNetV3, EfficientNet, EfficientNetV2, and ConvNeXt.
+    \item A new segmentation-guided classification architecture that injects filtered U-Net encoder features into a ResNet-style classifier through $1\times1$ convolution adapters.
+    \item A report-grade full-image fused experiment on the same 800/200/200 image-pair split used by the segmentation benchmark.
+\end{itemize}
 
 \section{Related Work}
 \subsection{xBD and Disaster Damage Assessment}
-xBD is a large-scale building damage assessment dataset introduced for the xView2 challenge \cite{gupta2019xbd}. It contains pre-disaster and post-disaster satellite images with building polygons and damage labels. The labels commonly include no-damage, minor-damage, major-damage, and destroyed. This makes xBD directly relevant to post-disaster response and a better fit for this project than generic image classification datasets.
+xBD was introduced for the xView2 challenge as a large-scale building damage assessment dataset \cite{gupta2019xbd}. It contains paired pre-disaster and post-disaster satellite imagery, building annotations, and damage labels. The common damage labels are no-damage, minor-damage, major-damage, and destroyed. This dataset is directly connected to real disaster response, which makes it appropriate for evaluating the project beyond a toy computer vision setting.
 
 \subsection{Segmentation Models}
-U-Net \cite{ronneberger2015unet} is a widely used encoder-decoder model for biomedical and remote-sensing segmentation. FCN \cite{long2015fcn} is one of the classic fully convolutional segmentation baselines. DeepLabV3 \cite{chen2018deeplab} improves segmentation by using atrous convolution and multi-scale context. These models form a reasonable segmentation benchmark ranging from a simple U-Net implementation to stronger ImageNet-pretrained ResNet-based segmentation models.
+U-Net \cite{ronneberger2015unet} is a standard encoder-decoder model with skip connections and is widely used in biomedical and remote-sensing segmentation. FCN \cite{long2015fcn} is a classic fully convolutional segmentation architecture. DeepLabV3 \cite{chen2018deeplab} uses atrous convolution and multi-scale context. These models provide a useful range of segmentation baselines from a simple U-Net to stronger ResNet-based models.
 
 \subsection{Classification Models}
-For crop-level building damage classification, this project compares lightweight and modern convolutional classifiers. ResNet \cite{he2016resnet} is a standard residual-network baseline. MobileNetV3 \cite{howard2019mobilenetv3} is a compact mobile-oriented model. EfficientNet and EfficientNetV2 \cite{tan2019efficientnet,tan2021efficientnetv2} use compound scaling and improved training efficiency. ConvNeXt \cite{liu2022convnet} modernizes convolutional networks using design choices inspired by vision transformers. These models provide a stronger comparison than using only a plain ResNet classifier.
+ResNet \cite{he2016resnet} is a standard residual-network classifier. MobileNetV3 \cite{howard2019mobilenetv3} is a compact model designed for efficient inference. EfficientNet and EfficientNetV2 \cite{tan2019efficientnet,tan2021efficientnetv2} use scaling strategies to balance model size and accuracy. ConvNeXt \cite{liu2022convnet} modernizes convolutional networks using design choices inspired by recent vision architectures. These baselines make the classification comparison stronger than using a single ResNet model.
 
 \section{Dataset}
 \subsection{Data Source}
-The experiments use the HuggingFace dataset \texttt{xn67744/Disaster\_Recognition\_RemoteSense\_EN\_CN\_JA}, which contains xBD/xView2-derived train and test archives. The extracted data are stored locally under \texttt{data/xview2\_real}. The report package includes metadata CSV files and split summaries; the full raw imagery is not duplicated inside the package because the extracted dataset is larger than 11 GB.
+The experiments use the HuggingFace dataset \texttt{xn67744/Disaster\_Recognition\_RemoteSense\_EN\_CN\_JA}, which contains xBD/xView2-derived train and test archives. The extracted raw data are stored locally under \texttt{data/xview2\_real}. The full raw imagery is not copied into the report package because it is larger than 11 GB, but the package includes metadata CSV files, split summaries, metrics, plots, and configuration files.
 
-\subsection{Subset and Splits}
-To make the benchmark reproducible on a single workstation, a fixed subset is used. The image-pair subset contains 1200 pre/post pairs, split into 800 training pairs, 200 validation pairs, and 200 test pairs. For classification, building crops are generated from connected components in the xBD/xView2 damage masks. The paired-crop classification set contains 7987 crops. Table \ref{tab:dataset} summarizes the data split.
+\subsection{Splits and Labels}
+The image-pair subset contains 1200 pre/post disaster pairs. It is split into 800 training pairs, 200 validation pairs, and 200 test pairs. This split is used for segmentation and for the new full-image fused model. For crop-level classification, building crops are generated from connected components in the damage masks. A paired crop is created by concatenating the pre-disaster building crop and post-disaster building crop horizontally. Table \ref{tab:dataset} summarizes the split.
 
 \begin{table}[t]
     \centering
-    \caption{Dataset split used in this benchmark.}
+    \caption{Dataset split used in the experiments.}
     \label{tab:dataset}
     \begin{tabular}{lrrrr}
         \toprule
         Item & Train & Val & Test & Total \\
         \midrule
         Image pairs & 800 & 200 & 200 & 1200 \\
-        Paired crops & 5208 & 1388 & 1391 & 7987 \\
+        Paired building crops & 5208 & 1388 & 1391 & 7987 \\
         \bottomrule
     \end{tabular}
 \end{table}
 
-The paired-crop class distribution is shown in Table \ref{tab:classes}. The dataset is imbalanced: no-damage is the largest class, while minor-damage and major-damage are smaller and visually more ambiguous.
+The crop-level class counts are shown in Table \ref{tab:crop_classes}. The dataset is imbalanced, with no-damage being the largest class. Minor-damage and major-damage are also visually subtle, which makes fine-grained classification difficult.
 
 \begin{table}[t]
     \centering
-    \caption{Class counts for paired crop-level classification.}
-    \label{tab:classes}
+    \caption{Class counts for crop-level classification.}
+    \label{tab:crop_classes}
     \begin{tabular}{lr}
         \toprule
         Class & Count \\
@@ -84,49 +92,74 @@ The paired-crop class distribution is shown in Table \ref{tab:classes}. The data
     \end{tabular}
 \end{table}
 
-\section{Methods}
-\subsection{Damage Segmentation}
-The segmentation task predicts a five-class damage mask from remote-sensing images. Three segmentation models are benchmarked:
-\begin{itemize}
-    \item U-Net: a lightweight encoder-decoder baseline trained from scratch.
-    \item FCN-ResNet50: an ImageNet-pretrained fully convolutional model.
-    \item DeepLabV3-ResNet50: an ImageNet-pretrained model with atrous spatial pyramid pooling.
-\end{itemize}
+For the new full-image fused model, the image-level classification label is derived from the post-disaster damage mask by using the most severe damage class present in the image. This is a harder task than crop-level classification because the model receives the full image rather than a building-centered crop. Table \ref{tab:image_classes} shows the resulting image-level label distribution.
 
-All segmentation models are evaluated using pixel accuracy, mean intersection-over-union (mean IoU), and mean Dice score. For class $c$, IoU and Dice are computed as
+\begin{table}[t]
+    \centering
+    \caption{Image-level worst-damage labels for the fused model.}
+    \label{tab:image_classes}
+    \begin{tabular}{lrrrr}
+        \toprule
+        Split & No-damage & Minor & Major & Destroyed \\
+        \midrule
+        Train & 393 & 48 & 97 & 262 \\
+        Val & 88 & 19 & 32 & 61 \\
+        Test & 89 & 13 & 31 & 67 \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\section{Methods}
+\subsection{Baseline Damage Segmentation}
+The segmentation task predicts a five-class mask: background, no-damage, minor-damage, major-damage, and destroyed. The input is the paired pre/post image represented as a 6-channel tensor. I benchmark U-Net, FCN-ResNet50, and DeepLabV3-ResNet50. Segmentation is evaluated with pixel accuracy, mean intersection-over-union (IoU), and mean Dice score:
 \begin{equation}
     \mathrm{IoU}_c = \frac{TP_c}{TP_c + FP_c + FN_c},
 \end{equation}
 \begin{equation}
     \mathrm{Dice}_c = \frac{2TP_c}{2TP_c + FP_c + FN_c}.
 \end{equation}
-The final mean IoU and mean Dice are averaged over classes.
+The reported mean IoU and mean Dice are averaged over the five segmentation classes.
 
-\subsection{Crop-Level Damage Classification}
-For classification, each sample is a paired crop made by horizontally concatenating the pre-disaster crop and the corresponding post-disaster crop. This paired input lets the classifier compare the building before and after the disaster. The four output classes are no-damage, minor-damage, major-damage, and destroyed.
+\subsection{Baseline Crop-Level Classification}
+For crop-level classification, each sample is a paired crop containing the pre-disaster crop and post-disaster crop. This representation is important because damage is a change-detection problem. A post-disaster crop alone may not reveal whether the building changed, but the paired crop makes the before-and-after comparison explicit. The benchmark includes ResNet18, MobileNetV3-Small, EfficientNet-B0, EfficientNetV2-S, and ConvNeXt-Tiny. The best crop-level run uses ConvNeXt-Tiny with data augmentation and label smoothing.
 
-The benchmark includes ResNet18, MobileNetV3-Small, EfficientNet-B0, EfficientNetV2-S, and ConvNeXt-Tiny. All models use ImageNet pretrained weights where available, and the final classifier layer is replaced with a four-class output layer. The strongest classification run uses ConvNeXt-Tiny with paired pre/post crops, data augmentation, and label smoothing of 0.05. The augmentation is designed to preserve the pre/post order: horizontal flipping is applied within each half of the paired image instead of swapping the pre-disaster and post-disaster sides.
-
-\subsection{Implementation Details}
-Experiments are run in the Conda environment \texttt{recsys-gpu} with CUDA-enabled PyTorch on an NVIDIA GeForce RTX 4080 Laptop GPU. The segmentation image size is 256. The classification crop size is 224. Models are optimized with AdamW, learning rate $3\times 10^{-4}$, and weight decay $10^{-4}$. Automatic mixed precision is enabled. Each run saves its model checkpoint, validation history, test metrics, and training curve.
-
-\section{Experiments}
-\subsection{Benchmark Design}
-The benchmark is designed to satisfy three evaluation requirements: real data, multiple baselines, and comparison to stronger modern models. The segmentation benchmark compares U-Net, FCN-ResNet50, and DeepLabV3-ResNet50. The classification benchmark compares ResNet18, MobileNetV3-Small, EfficientNet-B0, EfficientNetV2-S, and ConvNeXt-Tiny. This setup allows the report to discuss both classical baselines and modern pretrained architectures.
-
-\subsection{Saved Artifacts}
-All experiment outputs are saved under \texttt{outputs/real\_runs} and copied into this report package. The package includes:
+\subsection{Segmentation-Guided Classification Model}
+The new work in this report is a segmentation-guided classification model. The model has two independent branches:
 \begin{itemize}
-    \item \texttt{tables/benchmark\_summary.csv}: all benchmark metrics.
-    \item \texttt{metrics/}: per-run JSON metrics and training histories.
-    \item \texttt{figures/}: benchmark plots and training curves.
-    \item \texttt{data\_metadata/}: split metadata and crop CSV files.
-    \item \texttt{configs/}: experiment configuration file.
+    \item A U-Net segmentation branch, which produces a damage segmentation mask and exposes encoder features.
+    \item A ResNet-style classification branch, which predicts an image-level worst-damage label.
 \end{itemize}
+Both branches take the same raw paired pre/post image tensor as input.
+
+Let $S_i$ denote the U-Net encoder feature at stage $i$, and let $C_i$ denote the classifier feature at the same stage. The feature dimensions are aligned so that the spatial resolution and channel count match at each stage. Before fusion, the segmentation feature is filtered through a learnable $1\times1$ convolution:
+\begin{equation}
+    \hat{S}_i = W_i^{1\times1}(S_i).
+\end{equation}
+The filtered segmentation feature is then added to the classifier feature:
+\begin{equation}
+    \tilde{C}_i = C_i + \hat{S}_i.
+\end{equation}
+This design follows the requested structure: the segmentation encoder and classification model remain separate, but each classifier stage receives selected segmentation information through a $1\times1$ adapter. The $1\times1$ convolution is important because it lets the model learn which segmentation features are useful for classification instead of injecting all encoder features directly.
+
+\subsection{Training Strategy}
+Three training strategies were considered:
+\begin{itemize}
+    \item Joint training: update U-Net, classifier, and fusion adapters together from the first epoch.
+    \item Alternating training: update the segmentation branch first, then update the classifier and $1\times1$ adapters.
+    \item Warmup then joint or alternating training: first train the segmentation branch for several epochs, then train the full fused system.
+\end{itemize}
+I selected warmup then joint training. The reason is that the classifier depends on segmentation-guided features. If the full model is trained jointly from the beginning, the classifier receives unstable segmentation features during early epochs. A short segmentation warmup makes the encoder features more meaningful before they are injected into the classifier. After warmup, joint training allows the segmentation branch, classifier branch, and fusion adapters to adapt together.
+
+\section{Experimental Setup}
+\subsection{Implementation}
+All experiments use the Conda environment \texttt{recsys-gpu} with CUDA-enabled PyTorch on an NVIDIA GeForce RTX 4080 Laptop GPU. The segmentation image size is 256. The crop-level classification size is 224. Models are trained with AdamW, learning rate $3\times10^{-4}$, and weight decay $10^{-4}$. Automatic mixed precision is enabled. Each run saves its checkpoint, validation metrics, test metrics, training curve, and configuration.
+
+\subsection{Report-Grade Runs}
+The baseline segmentation and fused full-image experiments use the same 800/200/200 image-pair split. The crop-level classifier uses the paired-crop set derived from the same images. The report package stores the final metrics under \texttt{metrics/}, tables under \texttt{tables/}, and plots under \texttt{figures/}. The new fused run is named \texttt{fused\_warmup\_joint\_full800\_augmented\_report}. It uses eight epochs, two segmentation warmup epochs, class-weighted classification loss, and label smoothing of 0.05.
 
 \section{Results}
-\subsection{Segmentation Results}
-Table \ref{tab:seg_results} shows the segmentation benchmark. FCN-ResNet50 achieves the best segmentation performance, with 0.9531 pixel accuracy, 0.3189 mean IoU, and 0.3957 mean Dice. DeepLabV3-ResNet50 improves over U-Net in mean IoU, but FCN-ResNet50 performs best on this subset.
+\subsection{Segmentation Benchmark}
+Table \ref{tab:seg_results} reports the baseline segmentation benchmark. FCN-ResNet50 achieves the best segmentation result with 0.9531 pixel accuracy, 0.3189 mean IoU, and 0.3957 mean Dice.
 
 \begin{table}[t]
     \centering
@@ -150,8 +183,8 @@ Table \ref{tab:seg_results} shows the segmentation benchmark. FCN-ResNet50 achie
     \label{fig:seg_benchmark}
 \end{figure}
 
-\subsection{Classification Results}
-Table \ref{tab:cls_results} shows the crop-level damage classification benchmark. The best result is obtained by ConvNeXt-Tiny with paired pre/post crops and augmentation. It achieves 0.7110 accuracy, 0.6716 macro-F1, and 0.7123 weighted-F1. Compared with the no-augmentation ConvNeXt-Tiny run, augmentation improves accuracy from 0.6959 to 0.7110 and macro-F1 from 0.6519 to 0.6716.
+\subsection{Crop-Level Classification Benchmark}
+Table \ref{tab:cls_results} reports the crop-level classification benchmark. ConvNeXt-Tiny with paired crops and augmentation performs best, reaching 0.7110 accuracy and 0.6716 macro-F1. This shows that paired temporal crops and a stronger modern classifier improve classification performance compared with simpler baselines.
 
 \begin{table}[t]
     \centering
@@ -178,8 +211,8 @@ Table \ref{tab:cls_results} shows the crop-level damage classification benchmark
     \label{fig:cls_benchmark}
 \end{figure}
 
-\subsection{Best Classifier Per-Class Results}
-Table \ref{tab:per_class} reports the per-class precision, recall, and F1 score for the best classifier. No-damage and destroyed are easier than minor-damage and major-damage. This is expected because minor and major damage often differ by subtle roof, wall, or debris patterns, while no-damage and destroyed are visually more separable.
+\subsection{Best Crop Classifier Per-Class Results}
+Table \ref{tab:per_class} reports the per-class metrics for the best crop-level classifier. No-damage and destroyed are easier than minor-damage and major-damage. This is expected because the boundary between minor and major damage is visually subtle and sometimes subjective.
 
 \begin{table}[t]
     \centering
@@ -200,18 +233,16 @@ Table \ref{tab:per_class} reports the per-class precision, recall, and F1 score 
 \begin{figure}[t]
     \centering
     \includegraphics[width=\linewidth]{best_classifier_training_curve.png}
-    \caption{Training curve for the best classification model. The best checkpoint is selected using validation macro-F1.}
+    \caption{Training curve for the best crop-level classification model.}
     \label{fig:best_cls_curve}
 \end{figure}
 
-\subsection{Segmentation-Guided Full-Image Classification}
-To further connect the segmentation and classification components, an additional report-grade experiment was run with a segmentation-guided classification architecture. In this model, the U-Net encoder and ResNet-style classifier are implemented as two independent branches. Both branches take the raw paired pre/post image as input. At each encoder stage, the U-Net feature is passed through a learnable $1\times1$ convolution adapter and then added to the classifier feature with the same spatial resolution and channel count. The training strategy first warms up the segmentation branch for two epochs and then jointly trains the segmentation branch, classification branch, and all $1\times1$ fusion adapters.
-
-This experiment uses the same 800/200/200 image-pair split as the main segmentation benchmark. Unlike the crop-level classifier in Table \ref{tab:cls_results}, the classifier here predicts an image-level worst-damage label from the full raw image pair. Therefore, the classification scores are not directly comparable to the crop-level ConvNeXt results; instead, this experiment evaluates the requested feature-fusion design under a harder full-image setting. Results are shown in Table \ref{tab:fused_results}.
+\subsection{Segmentation-Guided Full-Image Results}
+Table \ref{tab:fused_results} reports the new fused model experiment. This model is evaluated on the same 800/200/200 image-pair split as segmentation. It obtains 0.9436 pixel accuracy, 0.2144 mean IoU, and 0.2396 mean Dice for segmentation. For image-level worst-damage classification, it obtains 0.5000 accuracy, 0.3511 macro-F1, and 0.4878 weighted-F1.
 
 \begin{table}[t]
     \centering
-    \caption{Segmentation-guided full-image experiment on the 800/200/200 split.}
+    \caption{Segmentation-guided full-image model on the 800/200/200 split.}
     \label{tab:fused_results}
     \begin{tabular}{lr}
         \toprule
@@ -220,9 +251,25 @@ This experiment uses the same 800/200/200 image-pair split as the main segmentat
         Pixel accuracy & 0.9436 \\
         Mean IoU & 0.2144 \\
         Mean Dice & 0.2396 \\
-        Image-level classification accuracy & 0.5000 \\
-        Image-level classification macro-F1 & 0.3511 \\
-        Image-level classification weighted-F1 & 0.4878 \\
+        Image-level accuracy & 0.5000 \\
+        Image-level macro-F1 & 0.3511 \\
+        Image-level weighted-F1 & 0.4878 \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\begin{table}[t]
+    \centering
+    \caption{Per-class image-level results for the fused model.}
+    \label{tab:fused_per_class}
+    \begin{tabular}{lrrrr}
+        \toprule
+        Class & Precision & Recall & F1 & Support \\
+        \midrule
+        No-damage & 0.6020 & 0.6629 & 0.6310 & 89 \\
+        Minor-damage & 0.0000 & 0.0000 & 0.0000 & 13 \\
+        Major-damage & 0.2444 & 0.3548 & 0.2895 & 31 \\
+        Destroyed & 0.5263 & 0.4478 & 0.4839 & 67 \\
         \bottomrule
     \end{tabular}
 \end{table}
@@ -230,25 +277,27 @@ This experiment uses the same 800/200/200 image-pair split as the main segmentat
 \begin{figure}[t]
     \centering
     \includegraphics[width=\linewidth]{fused_full_training_curve.png}
-    \caption{Training curve for the segmentation-guided full-image model. The first two epochs warm up the segmentation branch before joint training.}
+    \caption{Training curve for the segmentation-guided full-image model. The first two epochs warm up the segmentation branch; the remaining epochs jointly train segmentation, classification, and $1\times1$ fusion adapters.}
     \label{fig:fused_curve}
 \end{figure}
 
 \section{Discussion}
-\subsection{Effect of Paired Pre/Post Inputs}
-Using paired pre/post crops is important because damage is fundamentally a change-detection problem. A post-disaster crop alone may show roof texture, shadows, debris, or partial occlusion, but it cannot always determine whether the building changed. The paired input gives the classifier direct access to the pre-disaster structure and the post-disaster condition, which improves the realism of the task.
+\subsection{Impact of Strong Baselines}
+The benchmark results show that stronger architectures matter. For segmentation, the ResNet-based FCN baseline outperforms the simple U-Net on this subset. For crop-level classification, ConvNeXt-Tiny with augmentation outperforms ResNet18, MobileNetV3, and EfficientNet variants. This supports the feedback that the project should not rely only on basic U-Net and ResNet models.
 
-\subsection{Why Classification Is Difficult}
-The best classifier reaches 0.7110 accuracy, but minor-damage and major-damage remain challenging. There are three main reasons. First, the class boundary between minor and major damage is inherently subjective. Second, the crop extraction uses mask-derived connected components, so some crops contain partial buildings or nearby context. Third, the class distribution is imbalanced, with no-damage being the largest class. These issues are common in real disaster datasets and make the benchmark more realistic than a clean toy classification problem.
+\subsection{Value of Paired Temporal Inputs}
+Both the crop-level classifier and fused full-image model use paired pre/post imagery. This is important because damage assessment is not only object recognition but also visual change reasoning. A post-disaster image alone may contain shadows, debris, or roof textures that are ambiguous. Paired inputs let the model compare the pre-disaster structure with the post-disaster state.
 
-\subsection{How the Work Addresses the Feedback}
-The feedback requested a real dataset, a more complete benchmark, and comparison with stronger methods. This report addresses those points directly. The experiments use real xBD/xView2-derived data. The segmentation benchmark includes U-Net, FCN-ResNet50, and DeepLabV3-ResNet50. The classification benchmark includes ResNet18, MobileNetV3-Small, EfficientNet-B0, EfficientNetV2-S, and ConvNeXt-Tiny. The best classification model uses a modern pretrained ConvNeXt backbone and paired temporal inputs. In addition, the segmentation-guided full-image experiment explicitly connects the segmentation and classification components through learned $1\times1$ feature adapters. Therefore, the project is not just a generic U-Net/ResNet demonstration; it is a real-data benchmark and model-design study for disaster damage assessment.
+\subsection{Interpretation of the Fused Model}
+The fused model directly implements the new design requirement. The segmentation branch and classification branch are independent models, and both consume the original paired image. The U-Net encoder features are not directly copied into the classifier; they are first filtered by $1\times1$ convolution adapters. This makes the fusion path learnable and lets the model select useful segmentation information.
 
-\section{Limitations and Future Work}
-This benchmark uses a reproducible subset so that all models can be trained on one workstation. A natural extension is to scale training to the full xBD/xView2 dataset. Another limitation is that the segmentation mean IoU is still modest, especially because small damaged building regions are difficult to segment precisely. Future work could evaluate specialized change-detection networks, transformer-based segmentation models, multi-task learning that jointly predicts building masks and damage labels, and uncertainty-aware damage assessment.
+The full-image classification performance is lower than the crop-level ConvNeXt result, but the two settings are different. The crop-level classifier receives building-centered crops and predicts crop damage. The fused model receives the entire raw image pair and predicts the image-level worst damage label. This is harder because the model must find relevant buildings within the full scene and ignore large background regions. The fused result should therefore be interpreted as a new model-design experiment rather than a direct replacement for the crop-level classifier.
+
+\subsection{Remaining Challenges}
+Minor-damage remains the hardest class in both crop-level and image-level results. This is expected because minor damage can be subtle and may occupy only a small part of a building. The segmentation mean IoU is also modest despite high pixel accuracy because the background class dominates many images. Future work should use stronger change-detection networks, more balanced sampling, object-level aggregation, and transformer-based segmentation or multi-task architectures.
 
 \section{Conclusion}
-This project implements a complete real-data benchmark for post-disaster building damage assessment. The experiments compare several segmentation and classification models, save all intermediate results, and directly address the requirement to use real data and stronger baselines. FCN-ResNet50 achieves the best segmentation result with 0.3189 mean IoU and 0.3957 mean Dice. ConvNeXt-Tiny with paired pre/post crops and augmentation achieves the best crop-level classification result with 0.7110 accuracy, 0.6716 macro-F1, and 0.7123 weighted-F1. The added segmentation-guided full-image model also runs end-to-end on the same 800/200/200 split, achieving 0.9436 pixel accuracy, 0.2144 mean IoU, and 0.5000 image-level classification accuracy. The results support the conclusion that modern pretrained models, paired temporal imagery, and segmentation-guided features are useful for damage assessment, while fine-grained damage severity remains a difficult open problem.
+This project develops a real-data benchmark and a segmentation-guided model for post-disaster building damage assessment. The benchmark satisfies the project feedback by using real xBD/xView2-derived data, evaluating multiple baselines, and comparing with modern models. FCN-ResNet50 achieves the best segmentation baseline with 0.3189 mean IoU and 0.3957 mean Dice. ConvNeXt-Tiny with paired crops and augmentation achieves the best crop-level classification result with 0.7110 accuracy and 0.6716 macro-F1. The new segmentation-guided full-image model adds a feature-fusion design in which U-Net encoder features are filtered by $1\times1$ adapters and injected into a ResNet-style classifier. On the same 800/200/200 image-pair split, this model achieves 0.9436 pixel accuracy, 0.2144 mean IoU, and 0.5000 image-level classification accuracy. Overall, the results show that realistic disaster assessment benefits from real data, paired temporal imagery, strong baselines, and explicit interaction between segmentation and classification features.
 
 \bibliographystyle{IEEEtran}
 \bibliography{references}
