@@ -1,0 +1,32 @@
+project: fused_xview2_segmentation_guided_classification
+seed: 228
+device: auto
+
+paths:
+  processed_dir: outputs/real_processed
+  run_dir: outputs/fused_runs
+
+data:
+  pairs_csv: hf_xview2_pairs.csv
+  image_size: 256
+  num_workers: 0
+  seg_classes: 5
+  class_names:
+    - no-damage
+    - minor-damage
+    - major-damage
+    - destroyed
+
+training:
+  strategy: warmup_joint
+  epochs: 4
+  warmup_epochs: 1
+  batch_size: 4
+  base_channels: 16
+  lr: 0.0003
+  weight_decay: 0.0001
+  cls_loss_weight: 1.0
+  amp: true
+  train_limit:
+  val_limit:
+  test_limit:
