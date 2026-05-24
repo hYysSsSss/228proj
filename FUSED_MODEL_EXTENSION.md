@@ -42,40 +42,47 @@ The script also supports:
 - `scripts/train_fused_multitask.py`
 - `configs/fused_xview2_benchmark.yaml`
 
-## Experiment Run
+## Report-Grade Experiment Run
 
 Command:
 
 ```bash
 conda run -n recsys-gpu python scripts/train_fused_multitask.py \
   --config configs/fused_xview2_benchmark.yaml \
-  --run-name fused_warmup_joint_real240 \
-  --epochs 4 \
-  --warmup-epochs 1 \
+  --run-name fused_warmup_joint_full800_augmented_report \
+  --epochs 8 \
+  --warmup-epochs 2 \
   --batch-size 4 \
   --base-channels 16 \
-  --train-limit 240 \
-  --val-limit 80 \
-  --test-limit 80
+  --class-weighted-loss \
+  --label-smoothing 0.05
 ```
 
 The run is saved locally under:
 
-`outputs/fused_runs/fused_warmup_joint_real240`
+`outputs/fused_runs/fused_warmup_joint_full800_augmented_report`
 
 ## Results
 
 This experiment uses full raw pre/post images for both segmentation and classification. The classification target is an image-level worst-damage label derived from the segmentation mask, so these numbers should not be directly compared with the previous crop-level classifier results.
 
-Test metrics on the 80-image subset:
+This report-grade run uses the full reproducible project split:
+
+| Split | No-damage | Minor | Major | Destroyed | Total |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Train | 393 | 48 | 97 | 262 | 800 |
+| Val | 88 | 19 | 32 | 61 | 200 |
+| Test | 89 | 13 | 31 | 67 | 200 |
+
+Test metrics on the 200-image test split:
 
 | Metric | Value |
 | --- | ---: |
-| Pixel accuracy | 0.9316 |
-| Mean IoU | 0.1986 |
-| Mean Dice | 0.2162 |
-| Classification accuracy | 0.4625 |
-| Classification macro-F1 | 0.2069 |
-| Classification weighted-F1 | 0.3435 |
+| Pixel accuracy | 0.9436 |
+| Mean IoU | 0.2144 |
+| Mean Dice | 0.2396 |
+| Classification accuracy | 0.5000 |
+| Classification macro-F1 | 0.3511 |
+| Classification weighted-F1 | 0.4878 |
 
-The result confirms that the new architecture runs end-to-end and saves all metrics, checkpoints, curves, and visualizations. The classification score is currently limited because full-image worst-damage classification is harder and the small subset is imbalanced.
+The result confirms that the new architecture runs end-to-end and saves all metrics, checkpoints, curves, and visualizations. The classification score is lower than the crop-level classifier because this experiment predicts an image-level worst-damage label from the full raw pre/post image pair. This is a harder and different task, but it is aligned with the requested design that both branches consume the original image data.

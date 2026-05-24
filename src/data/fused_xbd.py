@@ -15,6 +15,7 @@ class XBDImageMultiTaskDataset(Dataset):
         if max_items is not None:
             self.df = self.df.iloc[:max_items].reset_index(drop=True)
         self.image_size = image_size
+        self.labels = [self.label_from_mask_path(path) for path in self.df["mask_path"].tolist()]
 
     def __len__(self):
         return len(self.df)
@@ -26,6 +27,11 @@ class XBDImageMultiTaskDataset(Dataset):
         if len(damage_labels) == 0:
             return 0
         return int(damage_labels.max() - 1)
+
+    @classmethod
+    def label_from_mask_path(cls, mask_path):
+        mask = np.array(Image.open(mask_path).convert("L"), dtype=np.uint8)
+        return cls.image_label_from_mask(mask)
 
     def __getitem__(self, idx):
         row = self.df.iloc[idx]
@@ -44,5 +50,5 @@ class XBDImageMultiTaskDataset(Dataset):
             "post": post_tensor,
             "image": torch.cat([pre_tensor, post_tensor], dim=0),
             "mask": torch.from_numpy(mask_arr),
-            "label": torch.tensor(self.image_label_from_mask(mask_arr), dtype=torch.long),
+            "label": torch.tensor(self.labels[idx], dtype=torch.long),
         }

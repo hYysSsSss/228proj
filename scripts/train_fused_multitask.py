@@ -49,10 +49,16 @@ def make_loaders(pairs_csv, image_size, batch_size, num_workers, limits):
 
 def label_counts(dataset):
     counts = {name: 0 for name in CLASS_NAMES}
-    for idx in range(len(dataset)):
-        label = int(dataset[idx]["label"])
+    for label in dataset.labels:
         counts[CLASS_NAMES[label]] += 1
     return counts
+
+
+def class_weights_from_counts(counts):
+    values = torch.tensor([counts[name] for name in CLASS_NAMES], dtype=torch.float32)
+    weights = values.sum() / torch.clamp(values, min=1.0)
+    weights = weights / weights.mean()
+    return weights
 
 
 @torch.no_grad()
@@ -127,7 +133,7 @@ def train_warmup_segmentation(model, batch, optimizer, scaler, device, amp):
     return loss.item(), 0.0
 
 
-def train_joint(model, batch, optimizer, scaler, device, amp, cls_weight):
+def train_joint(model, batch, optimizer, scaler, device, amp, cls_weight, class_weights=None, label_smoothing=0.0):
     set_requires_grad(model, True)
     x = batch["image"].to(device)
     mask = batch["mask"].to(device)
@@ -136,7 +142,7 @@ def train_joint(model, batch, optimizer, scaler, device, amp, cls_weight):
     with torch.cuda.amp.autocast(enabled=autocast_enabled(device, amp)):
         out = model(x)
         seg_loss = torch.nn.functional.cross_entropy(out["seg"], mask)
-        cls_loss = torch.nn.functional.cross_entropy(out["cls"], label)
+        cls_loss = torch.nn.functional.cross_entropy(out["cls"], label, weight=class_weights, label_smoothing=label_smoothing)
         loss = seg_loss + cls_weight * cls_loss
     scaler.scale(loss).backward()
     scaler.step(optimizer)
@@ -144,7 +150,7 @@ def train_joint(model, batch, optimizer, scaler, device, amp, cls_weight):
     return seg_loss.item(), cls_loss.item()
 
 
-def train_alternate(model, batch, seg_optimizer, cls_optimizer, scaler, device, amp, cls_weight):
+def train_alternate(model, batch, seg_optimizer, cls_optimizer, scaler, device, amp, cls_weight, class_weights=None, label_smoothing=0.0):
     x = batch["image"].to(device)
     mask = batch["mask"].to(device)
     label = batch["label"].to(device)
@@ -166,7 +172,7 @@ def train_alternate(model, batch, seg_optimizer, cls_optimizer, scaler, device, 
     cls_optimizer.zero_grad(set_to_none=True)
     with torch.cuda.amp.autocast(enabled=autocast_enabled(device, amp)):
         out = model(x, detach_seg_for_cls=True)
-        cls_loss = torch.nn.functional.cross_entropy(out["cls"], label) * cls_weight
+        cls_loss = torch.nn.functional.cross_entropy(out["cls"], label, weight=class_weights, label_smoothing=label_smoothing) * cls_weight
     scaler.scale(cls_loss).backward()
     scaler.step(cls_optimizer)
     scaler.update()
@@ -183,6 +189,8 @@ def main():
     parser.add_argument("--batch-size", type=int, default=None)
     parser.add_argument("--base-channels", type=int, default=None)
     parser.add_argument("--cls-loss-weight", type=float, default=None)
+    parser.add_argument("--class-weighted-loss", action="store_true")
+    parser.add_argument("--label-smoothing", type=float, default=None)
     parser.add_argument("--train-limit", type=int, default=None)
     parser.add_argument("--val-limit", type=int, default=None)
     parser.add_argument("--test-limit", type=int, default=None)
@@ -212,7 +220,8 @@ def main():
         num_workers=data_cfg.get("num_workers", 0),
         limits=limits,
     )
-    save_json({split: label_counts(ds) for split, ds in datasets.items()}, run_dir / "label_counts.json")
+    counts_by_split = {split: label_counts(ds) for split, ds in datasets.items()}
+    save_json(counts_by_split, run_dir / "label_counts.json")
 
     base = args.base_channels or train_cfg["base_channels"]
     channels = tuple(base * (2 ** i) for i in range(5))
@@ -227,6 +236,11 @@ def main():
     epochs = args.epochs or train_cfg["epochs"]
     warmup_epochs = args.warmup_epochs if args.warmup_epochs is not None else train_cfg.get("warmup_epochs", 0)
     cls_weight = args.cls_loss_weight if args.cls_loss_weight is not None else train_cfg.get("cls_loss_weight", 1.0)
+    label_smoothing = args.label_smoothing if args.label_smoothing is not None else train_cfg.get("label_smoothing", 0.0)
+    class_weights = None
+    if args.class_weighted_loss or train_cfg.get("class_weighted_loss", False):
+        class_weights = class_weights_from_counts(counts_by_split["train"]).to(device)
+        save_json({name: float(class_weights[i].cpu()) for i, name in enumerate(CLASS_NAMES)}, run_dir / "class_weights.json")
     amp = train_cfg.get("amp", True)
     scaler = torch.cuda.amp.GradScaler(enabled=autocast_enabled(device, amp))
 
@@ -254,9 +268,13 @@ def main():
             if strategy.startswith("warmup") and epoch <= warmup_epochs:
                 seg_loss, cls_loss = train_warmup_segmentation(model, batch, seg_optimizer, scaler, device, amp)
             elif strategy in {"alternate", "warmup_alternate"}:
-                seg_loss, cls_loss = train_alternate(model, batch, seg_optimizer, cls_optimizer, scaler, device, amp, cls_weight)
+                seg_loss, cls_loss = train_alternate(
+                    model, batch, seg_optimizer, cls_optimizer, scaler, device, amp, cls_weight, class_weights, label_smoothing
+                )
             else:
-                seg_loss, cls_loss = train_joint(model, batch, joint_optimizer, scaler, device, amp, cls_weight)
+                seg_loss, cls_loss = train_joint(
+                    model, batch, joint_optimizer, scaler, device, amp, cls_weight, class_weights, label_smoothing
+                )
             train_seg_loss += seg_loss * batch["image"].size(0)
             train_cls_loss += cls_loss * batch["image"].size(0)
         n_train = max(len(loaders["train"].dataset), 1)

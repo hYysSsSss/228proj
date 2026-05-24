@@ -1,0 +1,20 @@
+{
+  "train": {
+    "no-damage": 393,
+    "minor-damage": 48,
+    "major-damage": 97,
+    "destroyed": 262
+  },
+  "val": {
+    "no-damage": 88,
+    "minor-damage": 19,
+    "major-damage": 32,
+    "destroyed": 61
+  },
+  "test": {
+    "no-damage": 89,
+    "minor-damage": 13,
+    "major-damage": 31,
+    "destroyed": 67
+  }
+}

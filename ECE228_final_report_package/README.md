@@ -24,6 +24,12 @@ This folder contains the LaTeX report and all report-ready experiment artifacts 
   - Macro-F1: 0.6716
   - Weighted-F1: 0.7123
 
+- Additional segmentation-guided full-image model: U-Net encoder features filtered by `1x1` adapters and fused into a ResNet-style classifier.
+  - Pixel accuracy: 0.9436
+  - Mean IoU: 0.2144
+  - Image-level classification accuracy: 0.5000
+  - Image-level macro-F1: 0.3511
+
 ## Dataset Note
 
 The full extracted raw xBD/xView2-derived dataset is not copied into this package because it is larger than 11 GB. The raw data remain in:

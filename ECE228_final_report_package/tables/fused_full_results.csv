@@ -1,0 +1,9 @@
+metric,value
+pixel_accuracy,0.9435862731933594
+mean_iou,0.21437600954396582
+mean_dice,0.239603250174221
+classification_accuracy,0.5
+classification_macro_f1,0.35109017368330264
+classification_weighted_f1,0.48776733428361313
+seg_loss,0.17951997455209492
+cls_loss,1.237708615064621

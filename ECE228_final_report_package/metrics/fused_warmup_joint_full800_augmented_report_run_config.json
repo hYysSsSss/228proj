@@ -1,0 +1,54 @@
+{
+  "config": {
+    "project": "fused_xview2_segmentation_guided_classification",
+    "seed": 228,
+    "device": "auto",
+    "paths": {
+      "processed_dir": "outputs/real_processed",
+      "run_dir": "outputs/fused_runs"
+    },
+    "data": {
+      "pairs_csv": "hf_xview2_pairs.csv",
+      "image_size": 256,
+      "num_workers": 0,
+      "seg_classes": 5,
+      "class_names": [
+        "no-damage",
+        "minor-damage",
+        "major-damage",
+        "destroyed"
+      ]
+    },
+    "training": {
+      "strategy": "warmup_joint",
+      "epochs": 4,
+      "warmup_epochs": 1,
+      "batch_size": 4,
+      "base_channels": 16,
+      "lr": 0.0003,
+      "weight_decay": 0.0001,
+      "cls_loss_weight": 1.0,
+      "class_weighted_loss": true,
+      "label_smoothing": 0.05,
+      "amp": true,
+      "train_limit": null,
+      "val_limit": null,
+      "test_limit": null
+    }
+  },
+  "args": {
+    "config": "configs/fused_xview2_benchmark.yaml",
+    "run_name": "fused_warmup_joint_full800_augmented_report",
+    "strategy": null,
+    "epochs": 8,
+    "warmup_epochs": 2,
+    "batch_size": 4,
+    "base_channels": 16,
+    "cls_loss_weight": null,
+    "class_weighted_loss": true,
+    "label_smoothing": 0.05,
+    "train_limit": null,
+    "val_limit": null,
+    "test_limit": null
+  }
+}

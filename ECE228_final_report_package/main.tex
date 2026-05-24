@@ -204,6 +204,36 @@ Table \ref{tab:per_class} reports the per-class precision, recall, and F1 score 
     \label{fig:best_cls_curve}
 \end{figure}
 
+\subsection{Segmentation-Guided Full-Image Classification}
+To further connect the segmentation and classification components, an additional report-grade experiment was run with a segmentation-guided classification architecture. In this model, the U-Net encoder and ResNet-style classifier are implemented as two independent branches. Both branches take the raw paired pre/post image as input. At each encoder stage, the U-Net feature is passed through a learnable $1\times1$ convolution adapter and then added to the classifier feature with the same spatial resolution and channel count. The training strategy first warms up the segmentation branch for two epochs and then jointly trains the segmentation branch, classification branch, and all $1\times1$ fusion adapters.
+
+This experiment uses the same 800/200/200 image-pair split as the main segmentation benchmark. Unlike the crop-level classifier in Table \ref{tab:cls_results}, the classifier here predicts an image-level worst-damage label from the full raw image pair. Therefore, the classification scores are not directly comparable to the crop-level ConvNeXt results; instead, this experiment evaluates the requested feature-fusion design under a harder full-image setting. Results are shown in Table \ref{tab:fused_results}.
+
+\begin{table}[t]
+    \centering
+    \caption{Segmentation-guided full-image experiment on the 800/200/200 split.}
+    \label{tab:fused_results}
+    \begin{tabular}{lr}
+        \toprule
+        Metric & Value \\
+        \midrule
+        Pixel accuracy & 0.9436 \\
+        Mean IoU & 0.2144 \\
+        Mean Dice & 0.2396 \\
+        Image-level classification accuracy & 0.5000 \\
+        Image-level classification macro-F1 & 0.3511 \\
+        Image-level classification weighted-F1 & 0.4878 \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=\linewidth]{fused_full_training_curve.png}
+    \caption{Training curve for the segmentation-guided full-image model. The first two epochs warm up the segmentation branch before joint training.}
+    \label{fig:fused_curve}
+\end{figure}
+
 \section{Discussion}
 \subsection{Effect of Paired Pre/Post Inputs}
 Using paired pre/post crops is important because damage is fundamentally a change-detection problem. A post-disaster crop alone may show roof texture, shadows, debris, or partial occlusion, but it cannot always determine whether the building changed. The paired input gives the classifier direct access to the pre-disaster structure and the post-disaster condition, which improves the realism of the task.
@@ -212,13 +242,13 @@ Using paired pre/post crops is important because damage is fundamentally a chang
 The best classifier reaches 0.7110 accuracy, but minor-damage and major-damage remain challenging. There are three main reasons. First, the class boundary between minor and major damage is inherently subjective. Second, the crop extraction uses mask-derived connected components, so some crops contain partial buildings or nearby context. Third, the class distribution is imbalanced, with no-damage being the largest class. These issues are common in real disaster datasets and make the benchmark more realistic than a clean toy classification problem.
 
 \subsection{How the Work Addresses the Feedback}
-The feedback requested a real dataset, a more complete benchmark, and comparison with stronger methods. This report addresses those points directly. The experiments use real xBD/xView2-derived data. The segmentation benchmark includes U-Net, FCN-ResNet50, and DeepLabV3-ResNet50. The classification benchmark includes ResNet18, MobileNetV3-Small, EfficientNet-B0, EfficientNetV2-S, and ConvNeXt-Tiny. The best classification model uses a modern pretrained ConvNeXt backbone and paired temporal inputs. Therefore, the project is not just a generic U-Net/ResNet demonstration; it is a real-data benchmark for disaster damage assessment.
+The feedback requested a real dataset, a more complete benchmark, and comparison with stronger methods. This report addresses those points directly. The experiments use real xBD/xView2-derived data. The segmentation benchmark includes U-Net, FCN-ResNet50, and DeepLabV3-ResNet50. The classification benchmark includes ResNet18, MobileNetV3-Small, EfficientNet-B0, EfficientNetV2-S, and ConvNeXt-Tiny. The best classification model uses a modern pretrained ConvNeXt backbone and paired temporal inputs. In addition, the segmentation-guided full-image experiment explicitly connects the segmentation and classification components through learned $1\times1$ feature adapters. Therefore, the project is not just a generic U-Net/ResNet demonstration; it is a real-data benchmark and model-design study for disaster damage assessment.
 
 \section{Limitations and Future Work}
 This benchmark uses a reproducible subset so that all models can be trained on one workstation. A natural extension is to scale training to the full xBD/xView2 dataset. Another limitation is that the segmentation mean IoU is still modest, especially because small damaged building regions are difficult to segment precisely. Future work could evaluate specialized change-detection networks, transformer-based segmentation models, multi-task learning that jointly predicts building masks and damage labels, and uncertainty-aware damage assessment.
 
 \section{Conclusion}
-This project implements a complete real-data benchmark for post-disaster building damage assessment. The experiments compare several segmentation and classification models, save all intermediate results, and directly address the requirement to use real data and stronger baselines. FCN-ResNet50 achieves the best segmentation result with 0.3189 mean IoU and 0.3957 mean Dice. ConvNeXt-Tiny with paired pre/post crops and augmentation achieves the best classification result with 0.7110 accuracy, 0.6716 macro-F1, and 0.7123 weighted-F1. The results support the conclusion that modern pretrained models and paired temporal imagery improve damage classification, while fine-grained damage severity remains a difficult open problem.
+This project implements a complete real-data benchmark for post-disaster building damage assessment. The experiments compare several segmentation and classification models, save all intermediate results, and directly address the requirement to use real data and stronger baselines. FCN-ResNet50 achieves the best segmentation result with 0.3189 mean IoU and 0.3957 mean Dice. ConvNeXt-Tiny with paired pre/post crops and augmentation achieves the best crop-level classification result with 0.7110 accuracy, 0.6716 macro-F1, and 0.7123 weighted-F1. The added segmentation-guided full-image model also runs end-to-end on the same 800/200/200 split, achieving 0.9436 pixel accuracy, 0.2144 mean IoU, and 0.5000 image-level classification accuracy. The results support the conclusion that modern pretrained models, paired temporal imagery, and segmentation-guided features are useful for damage assessment, while fine-grained damage severity remains a difficult open problem.
 
 \bibliographystyle{IEEEtran}
 \bibliography{references}
