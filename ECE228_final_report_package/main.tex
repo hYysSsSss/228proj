@@ -183,6 +183,13 @@ Table \ref{tab:seg_results} reports the baseline segmentation benchmark. FCN-Res
     \label{fig:seg_benchmark}
 \end{figure}
 
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=\linewidth]{best_segmentation_training_curve.png}
+    \caption{Training curve for the best segmentation baseline, FCN-ResNet50.}
+    \label{fig:best_seg_curve}
+\end{figure}
+
 \subsection{Crop-Level Classification Benchmark}
 Table \ref{tab:cls_results} reports the crop-level classification benchmark. ConvNeXt-Tiny with paired crops and augmentation performs best, reaching 0.7110 accuracy and 0.6716 macro-F1. This shows that paired temporal crops and a stronger modern classifier improve classification performance compared with simpler baselines.
 
